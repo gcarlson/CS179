@@ -99,8 +99,8 @@ cudaBackProjectKernel(float *sinogram_dev_float, int width, int height,
 	    xi = (yo - m * xo) / (q - m);
 	    yi = q * xi;
 	    d = sqrt(xi * xi + yi * yi);
-	    if (q > 0 && xi < 0 || q < 0 && xi > 0)
-		d = -d;
+	    if ((q > 0 && xi < 0) || (q < 0 && xi > 0))
+		d = 0 - d;
             }
             dev_output[index] += sinogram_dev_float[i * sinogram_width + 
                 (int) (d + sinogram_width / 2)];
@@ -205,7 +205,7 @@ int main(int argc, char** argv){
         Note: If you want to deal with real-to-complex and complex-to-real
         transforms in cuFFT, you'll have to slightly change our code above.
     */
-    cufftHandle plan;
+    /*cufftHandle plan;
     cufftPlan1d(&plan, sinogram_width, CUFFT_C2C, nAngles);
 
     cufftExecC2C(plan, dev_sinogram_cmplx, dev_sinogram_cmplx, CUFFT_FORWARD);
@@ -214,11 +214,12 @@ int main(int argc, char** argv){
     
     //checkCUDAKernelError();
     cufftExecC2C(plan, dev_sinogram_cmplx, dev_sinogram_cmplx, CUFFT_INVERSE);
-    cudaMoveKernel<<<nBlocks, threadsPerBlock>>>
-    	(dev_sinogram_cmplx, dev_sinogram_float, nAngles, sinogram_width);
- checkCUDAKernelError();
     
 cufftDestroy(plan);
+*/    cudaMoveKernel<<<nBlocks, threadsPerBlock>>>
+    	(dev_sinogram_cmplx, dev_sinogram_float, nAngles, sinogram_width);
+ 
+checkCUDAKernelError();
 
     /* TODO 2: Implement backprojection.
         - Allocate memory for the output image.
