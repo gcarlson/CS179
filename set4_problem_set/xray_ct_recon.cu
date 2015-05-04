@@ -86,6 +86,7 @@ cudaBackProjectKernel(float *sinogram_dev_float, int width, int height,
     while (index < width * height) {
         xo = index % width - width / 2.0;
         yo = height / 2.0 - index / width;
+        dev_output[index] = 0;
         for (int i = 0; i < nAngles; i++) {
             t = PI * i / nAngles;
             if (i == 0)
