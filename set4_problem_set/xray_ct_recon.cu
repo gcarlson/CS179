@@ -59,6 +59,10 @@ cudaScaleKernel(cufftComplex *sinogram_dev, int nAngles, int sinogram_width) {
     while (index < sinogram_width * nAngles) {
         sinogram_dev[index].x *= (1 - fabs((index % sinogram_width) * 2.0 
             / (sinogram_width - 1.0) - 1));
+        sinogram_dev[index].y *= (1 - fabs((index % sinogram_width) * 2.0 
+            / (sinogram_width - 1.0) - 1));
+
+
         index += blockDim.x * gridDim.x;
     }
 }
