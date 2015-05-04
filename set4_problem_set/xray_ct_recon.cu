@@ -85,10 +85,10 @@ cudaBackProjectKernel(float *sinogram_dev_float, int width, int height,
     float m, q, d, t, xi, yi, xo, yo;
     while (index < width * height) {
         xo = index % width - width / 2.0;
-        yo = height / 2.0 - index / width;
+        yo = height / 2.0 - (index + 0.0) / width;
         dev_output[index] = 0;
         for (int i = 0; i < nAngles; i++) {
-            t = PI * i / nAngles;
+            t = (PI * i) / nAngles;
             if (i == 0)
                 d = xo;
             else if (4 * i == nAngles)
@@ -103,7 +103,7 @@ cudaBackProjectKernel(float *sinogram_dev_float, int width, int height,
 		d = 0 - d;
             }
             dev_output[index] += sinogram_dev_float[i * sinogram_width + 
-                (int) (d + sinogram_width / 2)];
+                (int) (d + sinogram_width / 2.0)];
         }
         index += blockDim.x * gridDim.x;
     }
