@@ -103,7 +103,7 @@ cudaBackProjectKernel(float *sinogram_dev_float, int width, int height,
 		d = -d;
             }
             dev_output[index] += sinogram_dev_float[i * sinogram_width + 
-                (int) (d * sinogram_width)];
+                (int) (d + sinogram_width / 2)];
         }
         index += blockDim.x * gridDim.x;
     }
