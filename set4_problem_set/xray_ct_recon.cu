@@ -111,8 +111,8 @@ cudaBackProjectKernel(float *sinogram_dev_float, int width, int height,
 	    if ((q > 0 && xi < 0) || (q < 0 && xi > 0))
 		d = 0 - d;
             }
-            dev_output[index] += tex2D(texreference, 
-                (int) (d + sinogram_width / 2.0), i);
+            dev_output[index] += tex2D(texreference, i,
+                (int) (d + sinogram_width / 2.0));
             //dev_output[index] += sinogram_dev_float[i * sinogram_width + 
             //    (int) (d + sinogram_width / 2.0)];
         }
@@ -244,6 +244,7 @@ int main(int argc, char** argv){
 
     texreference.filterMode = cudaFilterModeLinear;
     texreference.addressMode[0] = cudaAddressModeClamp;
+    texreference.addressMode[1] = cudaAddressModeClamp;
     
     cudaBindTextureToArray(texreference, carray);
     
