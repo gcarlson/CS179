@@ -65,6 +65,19 @@ cudaScaleKernel(cufftComplex *sinogram_dev, int nAngles, int sinogram_width) {
 
 __global__
 void
+cudaMoveKernel(cufftComplex *sinogram_dev, float *sinogram_dev_float,
+    int nAngles, int sinogram_width) {
+
+    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    while (index < sinogram_width * nAngles) {
+        sinogram_dev_float[index] = sinogram_dev[index].x;
+        index += blockDim.x * gridDim.x;
+    }
+}
+
+
+__global__
+void
 cudaBackProjectKernel(float *sinogram_dev_float, int width, int height,
     int sinogram_width, float *dev_output, int nAngles) {
 
@@ -74,17 +87,24 @@ cudaBackProjectKernel(float *sinogram_dev_float, int width, int height,
         xo = index % width - width / 2.0;
         yo = height / 2.0 - index / width;
         for (int i = 0; i < nAngles; i++) {
-            t = 2 * PI * i / nAngles;
-            m = 0 - cos(t) / sin(t);
-            q = -1.0 / m;
-            xi = (yo - m * xo) / (q - m);
-            yi = q * xi;
-            d = sqrt(xi * xi + yi * yi);
-            if (q > 0 && xi < 0 || q < 0 && xi > 0)
-                d = -d;
+            t = PI * i / nAngles;
+            if (i == 0)
+                d = xo;
+            else if (4 * i == nAngles)
+                d = yo;
+            else {  
+	    m = 0 - cos(t) / sin(t);
+	    q = -1.0 / m;
+	    xi = (yo - m * xo) / (q - m);
+	    yi = q * xi;
+	    d = sqrt(xi * xi + yi * yi);
+	    if (q > 0 && xi < 0 || q < 0 && xi > 0)
+		d = -d;
+            }
             dev_output[index] += sinogram_dev_float[i * sinogram_width + 
                 (int) (d * sinogram_width)];
         }
+        index += blockDim.x * gridDim.x;
     }
 }
   
@@ -190,12 +210,14 @@ int main(int argc, char** argv){
     cufftExecC2C(plan, dev_sinogram_cmplx, dev_sinogram_cmplx, CUFFT_FORWARD);
     cudaScaleKernel<<<nBlocks, threadsPerBlock>>>
         (dev_sinogram_cmplx, nAngles, sinogram_width);
-
+    
+    checkCUDAKernelError();
     cufftExecC2C(plan, dev_sinogram_cmplx, dev_sinogram_cmplx, CUFFT_INVERSE);
- 
-    cudaMemcpy(dev_sinogram_float, dev_sinogram_cmplx, 
-        nAngles * sinogram_width * sizeof(float), cudaMemcpyDeviceToDevice);
-    cufftDestroy(plan);
+    cudaMoveKernel<<<nBlocks, threadsPerBlock>>>
+    	(dev_sinogram_cmplx, dev_sinogram_float, nAngles, sinogram_width);
+ checkCUDAKernelError();
+    
+cufftDestroy(plan);
 
     /* TODO 2: Implement backprojection.
         - Allocate memory for the output image.
@@ -208,8 +230,10 @@ int main(int argc, char** argv){
     cudaBackProjectKernel<<<nBlocks, threadsPerBlock>>>
         (dev_sinogram_float, width, height, sinogram_width, 
             dev_output, nAngles);
-
-    
+  checkCUDAKernelError();
+           
+    cudaMemcpy(output_host, dev_output, width * height * sizeof(float),
+        cudaMemcpyDeviceToHost);    
     /* Export image data. */
 
     for(j = 0; j < width; j++){
