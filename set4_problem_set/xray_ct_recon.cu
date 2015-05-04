@@ -16,6 +16,7 @@ Adapted by Kevin Yuh (2015)
 
 #define PI 3.14159265358979
 
+texture<float, 2, cudaReadModeElementType> texreference;
 
 /* Check errors on CUDA runtime functions */
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -110,8 +111,10 @@ cudaBackProjectKernel(float *sinogram_dev_float, int width, int height,
 	    if ((q > 0 && xi < 0) || (q < 0 && xi > 0))
 		d = 0 - d;
             }
-            dev_output[index] += sinogram_dev_float[i * sinogram_width + 
-                (int) (d + sinogram_width / 2.0)];
+            dev_output[index] += tex2D(texreference, i, 
+                (int) (d + sinogram_width / 2.0));
+            //dev_output[index] += sinogram_dev_float[i * sinogram_width + 
+            //    (int) (d + sinogram_width / 2.0)];
         }
         index += blockDim.x * gridDim.x;
     }
@@ -230,6 +233,20 @@ int main(int argc, char** argv){
     cudaMoveKernel<<<nBlocks, threadsPerBlock>>>
     	(dev_sinogram_cmplx, dev_sinogram_float, nAngles, sinogram_width);
     checkCUDAKernelError();
+
+    cudaArray* carray;
+    cudaChannelFormatDesc channel;
+    channel = cudaCreateChannelDesc<float>();
+
+    cudaMallocArray(&carray, &channel, nAngles, sinogram_width);
+    cudaMemcpyToArray(carray, 0, 0, dev_sinogram_float, 
+        nAngles * sinogram_width * sizeof(float), cudaMemcpyDeviceToDevice);
+
+    texreference.filterMode = cudaFilterModeLinear;
+    texreference.addressMode[0] = cudaAddressModeClamp;
+    
+    cudaBindTextureToArray(texreference, carray);
+    
 
     /* Backprojection.
         - Create your own kernel to accelerate backprojection.
