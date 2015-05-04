@@ -38,6 +38,7 @@ void gpuFFTchk(int errval){
 }
 
 
+
 /* Check errors on CUDA kernel calls */
 void checkCUDAKernelError()
 {
@@ -50,6 +51,43 @@ void checkCUDAKernelError()
 
 }
 
+__global__
+void
+cudaScaleKernel(cufftComplex *sinogram_dev, int nAngles, int sinogram_width) {
+
+    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    while (index < sinogram_width * nAngles) {
+        sinogram_dev[index].x *= fabs((index % nAngles) * 2.0 
+            / (sinogram_width - 1.0) - 1);
+        index += blockDim.x * gridDim.x;
+    }
+}
+
+__global__
+void
+cudaBackProjectKernel(float *sinogram_dev_float, int width, int height,
+    int sinogram_width, float *dev_output, int nAngles) {
+
+        unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    float m, q, d, t, xi, yi, xo, yo;
+    while (index < width * height) {
+        xo = index % width - width / 2.0;
+        yo = height / 2.0 - index / width;
+        for (int i = 0; i < nAngles; i++) {
+            t = 2 * PI * i / nAngles;
+            m = 0 - cos(t) / sin(t);
+            q = -1.0 / m;
+            xi = (yo - m * xo) / (q - m);
+            yi = q * xi;
+            d = sqrt(xi * xi + yi * yi);
+            if (q > 0 && xi < 0 || q < 0 && xi > 0)
+                d = -d;
+            dev_output[index] += sinogram_dev_float[i * sinogram_width + 
+                (int) (d * sinogram_width)];
+        }
+    }
+}
+  
 
 
 
@@ -128,7 +166,13 @@ int main(int argc, char** argv){
 
     /* TODO: Allocate memory for all GPU storage above, copy input sinogram
     over to dev_sinogram_cmplx. */
+    cudaMalloc(&dev_sinogram_cmplx, nAngles * sinogram_width * sizeof(cufftComplex));
+    cudaMalloc(&dev_sinogram_float, nAngles * sinogram_width * sizeof(float));
+    cudaMalloc(&output_dev, width * height * sizeof(float));  // Image storage
 
+    cudaMemcpy(dev_sinogram_cmplx, sinogram_host, 
+        nAngles * sinogram_width * sizeof(cufftComplex), cudaMemcpyHostToDevice);
+   
 
     /* TODO 1: Implement the high-pass filter:
         - Use cuFFT for the forward FFT
@@ -140,7 +184,18 @@ int main(int argc, char** argv){
         Note: If you want to deal with real-to-complex and complex-to-real
         transforms in cuFFT, you'll have to slightly change our code above.
     */
+    cufftHandle plan;
+    cufftPlan1d(&plan, sinogram_width, CUFFT_C2C, nAngles);
 
+    cufftExecC2C(plan, dev_sinogram_cmplx, dev_sinogram_cmplx, CUFFT_FORWARD);
+    cudaScaleKernel<<<nBlocks, threadsPerBlock>>>
+        (dev_sinogram_cmplx, nAngles, sinogram_width);
+
+    cufftExecC2C(plan, dev_sinogram_cmplx, dev_sinogram_cmplx, CUFFT_INVERSE);
+ 
+    cudaMemcpy(dev_sinogram_float, dev_sinogram_cmplx, 
+        nAngles * sinogram_width * sizeof(float), cudaMemcpyDeviceToDevice);
+    cufftDestroy(plan);
 
     /* TODO 2: Implement backprojection.
         - Allocate memory for the output image.
@@ -148,6 +203,11 @@ int main(int argc, char** argv){
         - Copy the reconstructed image back to output_host.
         - Free all remaining memory on the GPU.
     */
+    float *dev_output;
+    cudaMalloc(&dev_output, width * height * sizeof(float));
+    cudaBackProjectKernel<<<nBlocks, threadsPerBlock>>>
+        (dev_sinogram_float, width, height, sinogram_width, 
+            dev_output, nAngles);
 
     
     /* Export image data. */
