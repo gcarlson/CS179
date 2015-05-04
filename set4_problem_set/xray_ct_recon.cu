@@ -51,22 +51,25 @@ void checkCUDAKernelError()
 
 }
 
+
+/* Kernel for ramp filtering */
 __global__
 void
 cudaScaleKernel(cufftComplex *sinogram_dev, int nAngles, int sinogram_width) {
 
     unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     while (index < sinogram_width * nAngles) {
+        // Scale highest frequencies by more
         sinogram_dev[index].x *= (1 - fabs((index % sinogram_width) * 2.0 
             / (sinogram_width - 1.0) - 1));
         sinogram_dev[index].y *= (1 - fabs((index % sinogram_width) * 2.0 
             / (sinogram_width - 1.0) - 1));
 
-
         index += blockDim.x * gridDim.x;
     }
 }
 
+/* Kernel for copying complex results to floats */
 __global__
 void
 cudaMoveKernel(cufftComplex *sinogram_dev, float *sinogram_dev_float,
@@ -79,18 +82,19 @@ cudaMoveKernel(cufftComplex *sinogram_dev, float *sinogram_dev_float,
     }
 }
 
-
+/* Kernel to perform backprojection */
 __global__
 void
 cudaBackProjectKernel(float *sinogram_dev_float, int width, int height,
     int sinogram_width, float *dev_output, int nAngles) {
 
-        unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+    unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
     float m, q, d, t, xi, yi, xo, yo;
     while (index < width * height) {
         xo = index % width - width / 2.0;
         yo = height / 2.0 - (index + 0.0) / width;
         dev_output[index] = 0;
+        // Handle edge cases (otherwise will divide by zero)
         for (int i = 0; i < nAngles; i++) {
             t = (PI * i) / nAngles;
             if (i == 0)
@@ -189,9 +193,10 @@ int main(int argc, char** argv){
 
     /*********** Assignment starts here *********/
 
-    /* TODO: Allocate memory for all GPU storage above, copy input sinogram
+    /* Allocate memory for all GPU storage above, copy input sinogram
     over to dev_sinogram_cmplx. */
-    cudaMalloc(&dev_sinogram_cmplx, nAngles * sinogram_width * sizeof(cufftComplex));
+    cudaMalloc(&dev_sinogram_cmplx, 
+        nAngles * sinogram_width * sizeof(cufftComplex));
     cudaMalloc(&dev_sinogram_float, nAngles * sinogram_width * sizeof(float));
     cudaMalloc(&output_dev, width * height * sizeof(float));  // Image storage
 
@@ -199,7 +204,7 @@ int main(int argc, char** argv){
         nAngles * sinogram_width * sizeof(cufftComplex), cudaMemcpyHostToDevice);
    
 
-    /* TODO 1: Implement the high-pass filter:
+    /* The high-pass filter:
         - Use cuFFT for the forward FFT
         - Create your own kernel for the frequency scaling.
         - Use cuFFT for the inverse FFT
@@ -210,6 +215,7 @@ int main(int argc, char** argv){
         transforms in cuFFT, you'll have to slightly change our code above.
     */
     cufftHandle plan;
+    // Use a batched FFT to transform each sinogram at once
     cufftPlan1d(&plan, sinogram_width, CUFFT_C2C, nAngles);
 
     cufftExecC2C(plan, dev_sinogram_cmplx, dev_sinogram_cmplx, CUFFT_FORWARD);
@@ -217,29 +223,31 @@ int main(int argc, char** argv){
         (dev_sinogram_cmplx, nAngles, sinogram_width);
     
     checkCUDAKernelError();
-    cufftExecC2C(plan, dev_sinogram_cmplx, dev_sinogram_cmplx, CUFFT_INVERSE);
     
-cufftDestroy(plan);
+    cufftExecC2C(plan, dev_sinogram_cmplx, dev_sinogram_cmplx, CUFFT_INVERSE);
+    cufftDestroy(plan);
+    
     cudaMoveKernel<<<nBlocks, threadsPerBlock>>>
     	(dev_sinogram_cmplx, dev_sinogram_float, nAngles, sinogram_width);
- 
-checkCUDAKernelError();
+    checkCUDAKernelError();
 
-    /* TODO 2: Implement backprojection.
-        - Allocate memory for the output image.
+    /* Backprojection.
         - Create your own kernel to accelerate backprojection.
         - Copy the reconstructed image back to output_host.
         - Free all remaining memory on the GPU.
     */
-    float *dev_output;
-    cudaMalloc(&dev_output, width * height * sizeof(float));
     cudaBackProjectKernel<<<nBlocks, threadsPerBlock>>>
         (dev_sinogram_float, width, height, sinogram_width, 
-            dev_output, nAngles);
-  checkCUDAKernelError();
+            output_dev, nAngles);
+    checkCUDAKernelError();
            
-    cudaMemcpy(output_host, dev_output, width * height * sizeof(float),
+    cudaMemcpy(output_host, output_dev, width * height * sizeof(float),
         cudaMemcpyDeviceToHost);    
+    
+    cudaFree(dev_sinogram_cmplx);
+    cudaFree(dev_sinogram_float);
+    cudaFree(output_dev);    
+
     /* Export image data. */
 
     for(j = 0; j < width; j++){
