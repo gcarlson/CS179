@@ -91,7 +91,7 @@ cudaBackProjectKernel(float *sinogram_dev_float, int width, int height,
             t = (PI * i) / nAngles;
             if (i == 0)
                 d = xo;
-            else if (4 * i == nAngles)
+            else if (2 * i == nAngles)
                 d = yo;
             else {  
 	    m = 0 - cos(t) / sin(t);
