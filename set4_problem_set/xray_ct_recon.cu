@@ -205,18 +205,18 @@ int main(int argc, char** argv){
         Note: If you want to deal with real-to-complex and complex-to-real
         transforms in cuFFT, you'll have to slightly change our code above.
     */
-    /*cufftHandle plan;
+    cufftHandle plan;
     cufftPlan1d(&plan, sinogram_width, CUFFT_C2C, nAngles);
 
     cufftExecC2C(plan, dev_sinogram_cmplx, dev_sinogram_cmplx, CUFFT_FORWARD);
-    //cudaScaleKernel<<<nBlocks, threadsPerBlock>>>
-    //    (dev_sinogram_cmplx, nAngles, sinogram_width);
+    cudaScaleKernel<<<nBlocks, threadsPerBlock>>>
+        (dev_sinogram_cmplx, nAngles, sinogram_width);
     
-    //checkCUDAKernelError();
+    checkCUDAKernelError();
     cufftExecC2C(plan, dev_sinogram_cmplx, dev_sinogram_cmplx, CUFFT_INVERSE);
     
 cufftDestroy(plan);
-*/    cudaMoveKernel<<<nBlocks, threadsPerBlock>>>
+    cudaMoveKernel<<<nBlocks, threadsPerBlock>>>
     	(dev_sinogram_cmplx, dev_sinogram_float, nAngles, sinogram_width);
  
 checkCUDAKernelError();
