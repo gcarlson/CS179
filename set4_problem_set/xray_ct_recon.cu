@@ -236,7 +236,7 @@ int main(int argc, char** argv){
 
     cudaArray* carray;
     cudaChannelFormatDesc channel;
-    channel = cudaCreateChannelDesc<float>();
+    channel = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
 
     cudaMallocArray(&carray, &channel, nAngles, sinogram_width);
     cudaMemcpyToArray(carray, 0, 0, dev_sinogram_float, 
