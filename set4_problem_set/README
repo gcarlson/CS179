@@ -1,0 +1,19 @@
+1.1 
+
+Regardless of how it is used, storing this data in per-block shared memory will require copying it from global memory, meaning each element must be read from global at least once anyway. During a BFS, each edge and vertex is read at most once, meaning this transfer does not actually provide a speed gain, and uses unnecessary space.
+
+1.2
+
+When storing false as 0 and true as 1 in the frontier array, testing whether F is not all false is equivalent to testing whether its sum is nonzero. This sum can be found quickly via a reduction, allowing for a fast, parallel check.
+
+1.3
+
+Another way to store the frontier is to simply create a counter in global memory, which stores the number of vertices in the frontier. This can be maintained by incrementing whenever f is set to true and decrementing when it is set to false. This adds some additional global writes inside the kernel, but saves a large number of reads when testing if the frontier is empty. For this reason, this method will perform better on sparse graphs, where many levels of searching are required. On denser graphs, where a shallower search is needed, the previous method will outperform this one.
+
+2.1
+
+Parallelization over the entries in the list would not be practical, as it invites a number of unsafe operations due to multiple lines attempting to add to the intensity of the same pixel. In addition, texture memory must be constant. This makes it impossible to use texture memory to store the emissions as they are gradually collected, meaning it cannot be used to speed up the algorithm.
+
+3.3
+
+I modified the code to use texture caching for the sinogram. This caused the resulting image to become slightly blurrier, probably due to interpolation.
