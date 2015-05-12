@@ -1,0 +1,54 @@
+Summary 
+
+My plan for this project is to implement parallel game tree evaluation on
+the GPU. I will then apply this to my existing Othello code from CS 2 in
+hopes of achieving a dramatic speedup, and thus making a more powerful bot.
+
+Project Length: 3 weeks
+
+Team Member: Grant Carlson
+
+Gaming AI of any kind can always benefit from more computational resources.
+For a turn-based game like Othello, faster processing allows more potential
+positions to be considered, which allows the AI to look further ahead when
+making decisions. 
+
+This problem is challenging because most game tree evaluation, my current
+Othello code included, is done in a recursive manner. This makes it rather
+difficult to parallelize. Furthermore, some search optimizations which
+provide great gains in a serial context, such as alpha-beta pruning, are
+much more difficult to implement or even less effective in parallel.
+However, this problem has been studied a decent amount, and there are
+numerous papers I plan to consult on the topic. The trickiest part of this
+problem appears to be re-representing the game tree in a manner conducive to
+parallelization, while still allowing for these optimizations.
+
+Although the ultimate goal here is to make a more powerful bot, this is
+difficult to quantify. My current implementation does not search to a
+constant depth, but rather goes as deep as it can before running out of
+time. One goal of this project is to increase the average depth it reaches.
+This too is somewhat difficult to measure, as with a deeper search, the
+improved AI may well choose a different move in a given scenerio, meaning
+games will diverge. Therefore, the best metric here is the time taken to
+perform a search to a constant depth. I would like the optimized code to
+take a much shorter time to consistently search to a moderate depth (about
+11-12). 
+
+Rough timeline:
+
+Week 1:
+
+Read papers on parallel search techniques
+Construct plan for traversal, storage, etc.
+Redesign existing code in this system
+
+Week 2:
+
+Implement basic search on the GPU
+
+Week 3: 
+
+Add search optimizations (alpha-beta, move ordering, etc.)
+Optimize GPU usage (memory accesses, etc.)
+
+
